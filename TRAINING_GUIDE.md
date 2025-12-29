@@ -18,7 +18,7 @@ Comprehensive guide for training GDyNet models on molecular dynamics data.
 
 ### VAMP Loss and Multi-Phase Training
 
-GDyNet uses VAMP (Variational Approach for Markov Processes) loss to learn slow dynamical features from molecular dynamics trajectories.
+GDyNet-ferro uses VAMP (Variational Approach for Markov Processes) loss to learn slow dynamical features from molecular dynamics trajectories.
 
 #### Loss Types
 
@@ -56,6 +56,15 @@ Example: Phase 1, Epoch 15 → Global Epoch 45
 - Different loss types emphasize different aspects of dynamics
 - Cycling helps avoid local minima
 - Provides robustness in learned representations
+
+#### Hyperparameters for VAMP losses
+- **`epsilon`** – Numerical stability parameter used during matrix inversion and eigenvalue computations. For stable and reliable training, this value should typically be set **below `1e-5`**.
+
+- **`mode`** – Controls how eigenvalues are handled during **VAMP loss** computation to ensure numerical stability. The available options are:
+  - **`trunc`** – Truncates eigenvalues below `epsilon`, effectively discarding near-zero modes that can cause numerical instabilities.
+  - **`regularize`** – Adds `epsilon`-level regularization to the covariance matrices before eigenvalue decomposition, improving conditioning while preserving all modes.
+  - **`clamp`** – Clamps eigenvalues to a minimum value of `epsilon`, preventing singularities without fully removing low-energy modes.
+
 
 ---
 
@@ -243,7 +252,7 @@ wandb:
 
 ```bash
 # Activate environment
-conda activate pyg_latest
+conda activate <conda-env>
 
 # Single GPU
 python trainer.py \
@@ -261,14 +270,22 @@ python trainer.py \
 
 #### 1. Prepare Batch Script
 
-Edit `nersc/submit_train_vanilla.sbatch`:
+Edit `frontier/example_submit.sbatch`:
 
 ```bash
-# Update resource requirements
-#SBATCH --time=04:00:00        # Adjust based on data size
-#SBATCH --nodes=2              # Number of nodes
-#SBATCH --gpus-per-node=4      # A100 GPUs per node
-#SBATCH --account=m526_g       # Your allocation
+#!/bin/bash
+#SBATCH -A <PROJECT NAME>
+#SBATCH -J <JOB NAME>>
+#SBATCH -o logs/<LOGSNAME>-%j.out
+#SBATCH -e logs/<LOGSNAME>-%j.err
+#SBATCH -t 02:00:00
+#SBATCH -p batch
+#SBATCH -N 2
+#SBATCH --ntasks-per-node=8
+#SBATCH --gpus-per-node=8
+#SBATCH --cpus-per-task=7
+#SBATCH --exclusive
+#SBATCH --mem=0
 
 # Update paths
 cmd="python trainer.py --config configs/my_experiment.yaml --mode train"
@@ -278,13 +295,13 @@ cmd="python trainer.py --config configs/my_experiment.yaml --mode train"
 
 ```bash
 # Make sure you're in the repository root
-cd /path/to/gdynet_dev_claude_v3
+cd /path/to/gdy_pl
 
 # Create logs directory
 mkdir -p logs
 
 # Submit
-sbatch nersc/submit_train_vanilla.sbatch
+sbatch frontier/example_submit.sbatch`
 
 # Check status
 squeue -u $USER
@@ -493,6 +510,7 @@ To add more training beyond original schedule:
 2. **Monitor validation**:
    - Validation loss should decrease
    - If diverging, reduce learning rate
+   - Also monitor the `vamp2` loss value it should be close to `(states -1)`
 
 3. **Checkpointing**:
    - Use `frequency: 1` to save every epoch (debugging)
@@ -507,9 +525,11 @@ To add more training beyond original schedule:
 ### Performance Tuning
 
 1. **Batch size**:
-   - Larger = faster training (better GPU utilization)
-   - Limited by GPU memory
-   - Try: 16, 32, 64 (powers of 2 are efficient)
+   - Larger values generally lead to faster training due to better GPU utilization.
+   - Upper limits are constrained by available GPU memory.
+   - Recommended values to try: **16, 32, 64** (powers of two are typically more efficient).
+   - When using `DistributedSampler` together with `DataLoader`, ensure the selected `batch_size` allows the model to see each data point exactly once per epoch across all processes.
+
 
 2. **Mixed precision**:
    - Enable for large models
@@ -529,8 +549,9 @@ To add more training beyond original schedule:
    - Watch for NCCL errors (network issues)
 
 3. **Batch size scaling**:
-   - Effective batch size = batch_size × num_GPUs
-   - May need to adjust learning rate (multiply by sqrt(num_GPUs))
+   - **Effective batch size** is computed as: `batch_size × num_GPUs`.
+   - When increasing the effective batch size, the learning rate may need to be adjusted accordingly; however, this adjustment does **not** necessarily follow a strict or universal scaling law and should be tuned empirically.
+
 
 ---
 
@@ -557,7 +578,7 @@ To add more training beyond original schedule:
 
 **Solutions**:
 - Reduce `learning_rate` (0.001 → 0.0005)
-- Increase `epsilon` (1e-10 → 1e-8)
+- Increase `epsilon` (1e-07 → 1e-05)
 - Check data for NaN values
 
 #### 3. Training Too Slow
@@ -570,22 +591,8 @@ To add more training beyond original schedule:
 - Increase `batch_size` if memory allows
 - Use more GPUs
 
-#### 4. Validation Loss Not Improving
 
-**Symptom**: Val loss plateaus or increases
-
-**Possible causes**:
-- Overfitting (train loss decreases, val increases)
-- Learning rate too high (both losses unstable)
-- Model capacity too small
-
-**Solutions**:
-- Reduce learning rate
-- Increase model size (`n_conv: 3 → 4`)
-- More training data
-- Different loss schedule
-
-#### 5. Checkpoint Resume Fails
+#### 4. Checkpoint Resume Fails
 
 **Symptom**: `ValueError: Loss schedule mismatch`
 
@@ -595,7 +602,7 @@ To add more training beyond original schedule:
 - Use same config as original training
 - Or accept the warning and continue with new schedule
 
-#### 6. NCCL Hangs (Multi-node)
+#### 5. NCCL Hangs (Multi-node)
 
 **Symptom**: Training hangs at initialization
 

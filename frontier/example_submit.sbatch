@@ -12,6 +12,10 @@
 #SBATCH --exclusive
 #SBATCH --mem=0
 
+### For this submission script, you do not need to export `export_DDP_var.sh`
+### All required DDP environment variables are integrated directly into this single script
+
+
 set -euo pipefail
 mkdir -p logs
 

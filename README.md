@@ -10,7 +10,7 @@ ______________________________________________________________________
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Paper](https://img.shields.io/badge/Paper-Carbon%20Trends-orange)](https://doi.org/10.1016/j.cartre.2023.100264)
 
-*Production-ready PyTorch implementation of Graph Dynamical Networks with VAMP loss for analyzing molecular dynamics trajectories*
+*Scalable PyTorch implementation of **GDyNet-ferro** - Graph Dynamical Networks with VAMP loss for analyzing molecular dynamics trajectories*
 
 [Features](#features) •
 [Installation](#installation) •
@@ -30,11 +30,11 @@ GDyNet-ferro is a graph neural network framework for identifying slow dynamical 
 - Ferroelectric materials dynamics
 - Phase transition analysis
 - Reaction coordinate identification
-- Dimensionality reduction for MD data
+- Coarse-graining for MD data
 
 **This repository** provides a production-ready, optimized implementation with:
 - PyTorch 2.0+ support with `torch.compile`
-- Distributed training (DDP) on HPC clusters (NERSC Perlmutter, OLCF Frontier (Summit))
+- Distributed training and inference (DDP) on HPC clusters (NERSC Perlmutter, OLCF Frontier (Summit))
 - Robust checkpoint/resume functionality
 - Comprehensive metrics tracking
 - Easy configuration via YAML files
@@ -51,14 +51,7 @@ GDyNet-ferro is a graph neural network framework for identifying slow dynamical 
 | **gdynet_vanilla** | Standard GDyNet without direction features | General molecular systems |
 | **gdynet_ferro** | Enhanced with atom direction features | Ferroelectric materials, polarization |
 
-### Advanced Training
 
-- **Multi-phase VAMP Training**: Configurable loss schedule (VAMP1/VAMP2 cycling)
-- **Automatic Checkpointing**: Save/resume training with full state
-- **Distributed Training**: Multi-GPU, multi-node support (DDP)
-- **Performance Optimizations**:
-  - Mixed precision training (AMP/GradScaler) - 2-3x speedup
-  - PyTorch 2.0+ `torch.compile` - additional 10-20% speedup
 
 ### Post-processing & Analysis
 
@@ -97,7 +90,9 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # Install PyTorch Geometric
 pip install torch-geometric torch-scatter
-
+```
+**OR**
+```bash
 # Option 1: Install with pip (editable mode, recommended)
 pip install -e .
 
@@ -137,20 +132,16 @@ pip install -e ".[all]"
 
 ### HPC Setup
 
-#### NERSC Perlmutter
+Please refer to the official documentation for configuring Python and PyTorch on the respective HPC systems:
 
-```bash
-module load python pytorch/2.0.1
-conda activate your_env
-pip install -e .
-```
+- **NERSC Perlmutter** – [Python on Perlmutter](https://docs.nersc.gov/development/languages/python/using-python-perlmutter/)
+- **OLCF Frontier** – [PyTorch on Frontier](https://docs.olcf.ornl.gov/software/analytics/pytorch_frontier.html)
 
-#### OLCF Frontier
+An example batch submission script for **OLCF Frontier** is provided here:  
+- [Example SLURM submission script](/frontier/example_submit.sbatch)
 
-```bash
-module load PrgEnv-gnu rocm pytorch
-pip install -e .
-```
+
+
 
 ---
 
@@ -203,11 +194,12 @@ gdy_pl/
 
 ---
 
-## Quick Start
+## Quick Start 
+Follow [Training Guide](https://github.com/abhijeetdhakane/gdy_pl/blob/main/TRAINING_GUIDE.md) - Comprehensive training instructions
 
 ### 1. Prepare the Dataset from MD Trajectory
 
-GDyNet uses a graph data structure similar to the original GDyNet implementation. The preprocessing can be performed using [ASE](https://wiki.fysik.dtu.dk/ase/), [MDTraj](https://www.mdtraj.org/), or similar libraries. For constructing `atom_directions`, please refer to the [paper](https://doi.org/10.1016/j.cartre.2023.100264) and accompanying code.
+GDyNet-ferro uses a graph data structure similar to the original GDyNet implementation. The preprocessing can be performed using [ASE](https://wiki.fysik.dtu.dk/ase/), [MDTraj](https://www.mdtraj.org/), or similar libraries. For constructing `atom_directions` (*Local Polarization*) , please refer to the [paper](https://doi.org/10.1016/j.cartre.2023.100264) and accompanying code.
 
 Save each array as a separate `.npy` file to avoid out-of-memory errors when loading large trajectories:
 
@@ -232,12 +224,12 @@ import numpy as np
 
 # After preprocessing your MD trajectory...
 # Save each array separately to avoid OOM errors
-np.save('train_traj_coords.npy', traj_coords)          # (F, N, 3)
-np.save('train_atom_directions.npy', directions)       # (F, N, 3) - only for ferro model
-np.save('train_nbr_lists.npy', neighbor_indices)       # (F, N, M)
-np.save('train_nbr_dists.npy', neighbor_distances)     # (F, N, M)
-np.save('train_atom_types.npy', atomic_numbers)        # (N,)
-np.save('train_target_index.npy', target_atoms)        # (n,)
+np.save('train_traj_coords.npy', traj_coords)      # (F, N, 3)
+np.save('train_atom_directions.npy', directions)   # (F, N, 3) - only for ferro model
+np.save('train_nbr_lists.npy', neighbor_indices)   # (F, N, M)
+np.save('train_nbr_dists.npy', neighbor_distances) # (F, N, M)
+np.save('train_atom_types.npy', atomic_numbers)    # (N,)
+np.save('train_target_index.npy', target_atoms)    # (n,)
 ```
 
 ### 2. Configure Training
@@ -256,6 +248,11 @@ data:
     - /path/to/train_target_index.npy
     - /path/to/train_nbr_lists.npy
     - /path/to/train_nbr_dists.npy
+  val_fnames:
+  ....
+
+  test_fnames:
+  ....
 
 model:
   tau: 10                # Time lag for pairs
@@ -279,6 +276,8 @@ python trainer.py --config configs/my_experiment.yaml --mode train
 ```bash
 torchrun --nproc_per_node=4 trainer.py --config configs/my_experiment.yaml --mode train
 ```
+
+**OLCF-Frontier**: 
 ```bash
 # Training and evaluation commands
 train_cmd="python trainer.py \
@@ -296,7 +295,7 @@ echo "-------------------------------------------"
 # ---- SRUN: TRAIN ----
 srun -l bash -lc "
     # Export standard DDP environment variables
-    source nersc/export_DDP_vars.sh
+    source frontier/export_DDP_var.sh
 
     echo 'Starting TRAIN at ' \$(date)
     ${train_cmd}
@@ -306,7 +305,7 @@ srun -l bash -lc "
 
 **HPC (SLURM)**:
 ```bash
-sbatch nersc/submit_train.sbatch
+sbatch frontier/sbatch example_submit.sbatch
 ```
 
 ### 4. Resume Training
